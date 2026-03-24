@@ -3,6 +3,7 @@ import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
 import ImportPage from "./pages/ImportPage";
 import CoursePlayerPage from "./pages/CoursePlayerPage";
+import TextWorkspace from "./pages/TextWorkspace";
 import { useUiStore } from "./store/useUiStore";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/courses" element={<HomePage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/courses/:courseId" element={<CoursePlayerPage />} />
+            <Route path="/workspace" element={<TextWorkspace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
