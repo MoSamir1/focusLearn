@@ -5,3 +5,6 @@ yt-dlp
 youtube-transcript-api
 reportlab
 requests
+arabic-reshaper
+python-bidi
+aiohttp
