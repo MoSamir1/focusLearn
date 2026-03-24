@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Cairo, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
