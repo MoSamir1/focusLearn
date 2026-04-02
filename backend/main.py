@@ -480,6 +480,88 @@ def _request_headers(cookie: str | None = None) -> dict[str, str]:
     return headers
 
 
+def _strip_html_text(value: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", value)
+    text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _extract_hvp_links_with_chapters(page_html: str) -> list[dict[str, str]]:
+    link_pattern = re.compile(r"https?://maharatech\.gov\.eg/mod/hvp/view\.php\?id=\d+")
+    section_pattern = re.compile(
+        r"<[^>]*class=\"[^\"]*sectionname[^\"]*\"[^>]*>(.*?)</[^>]+>",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    section_markers: list[tuple[int, str]] = []
+    for match in section_pattern.finditer(page_html):
+        title = _strip_html_text(match.group(1))
+        if title:
+            section_markers.append((match.start(), title))
+
+    seen_links: set[str] = set()
+    resolved: list[dict[str, str]] = []
+    marker_idx = -1
+    for match in link_pattern.finditer(page_html):
+        link = match.group(0)
+        if link in seen_links:
+            continue
+        seen_links.add(link)
+
+        while marker_idx + 1 < len(section_markers) and section_markers[marker_idx + 1][0] < match.start():
+            marker_idx += 1
+
+        chapter_title = section_markers[marker_idx][1] if marker_idx >= 0 else "Main Chapter"
+        resolved.append({"link": link, "chapter_title": chapter_title})
+
+    return resolved
+
+
+def _normalize_chapter_group(chapter_title: str | None, video_title: str | None) -> str:
+    chapter_candidate = (chapter_title or "").strip()
+    video_candidate = (video_title or "").strip()
+
+    for candidate in (chapter_candidate, video_candidate):
+        if not candidate:
+            continue
+        match = re.search(
+            r"(^|[^A-Za-z0-9])CH\s*0*(\d{1,3})(?=[^A-Za-z0-9]|$)",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return f"CH{int(match.group(2)):02d}"
+
+    if chapter_candidate:
+        return chapter_candidate
+    if video_candidate:
+        return video_candidate
+    return "Main Chapter"
+
+
+@lru_cache(maxsize=4096)
+def _resolve_youtube_duration_seconds(youtube_id: str) -> int:
+    if not youtube_id:
+        return 0
+    try:
+        with YoutubeDL(
+            {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "socket_timeout": 15,
+            }
+        ) as ydl:
+            info = ydl.extract_info(
+                f"https://www.youtube.com/watch?v={youtube_id}",
+                download=False,
+            )
+        return int((info or {}).get("duration") or 0)
+    except Exception as exc:
+        logger.debug("Duration lookup failed for %s: %s", youtube_id, exc)
+        return 0
+
+
 async def fetch_hvp(session: aiohttp.ClientSession, semaphore: asyncio.Semaphore, link: str, headers: dict[str, str]) -> dict:
     try:
         async with semaphore:
@@ -507,9 +589,8 @@ async def fallback_extract_full_course(url: str, cookie: str | None = None) -> d
             response.raise_for_status()
             response_text = await response.text()
 
-        hvp_links = list(dict.fromkeys(
-            re.findall(r"https?://maharatech\.gov\.eg/mod/hvp/view\.php\?id=\d+", response_text)
-        ))
+        hvp_items = _extract_hvp_links_with_chapters(response_text)
+        hvp_links = [item["link"] for item in hvp_items]
         
         if not hvp_links:
             login_markers = ["Login to your account", "Log in", "الدخول لحسابك", "تسجيل دخول"]
@@ -526,13 +607,14 @@ async def fallback_extract_full_course(url: str, cookie: str | None = None) -> d
         semaphore = asyncio.Semaphore(SCRAPE_CONCURRENCY_LIMIT)
         tasks = [fetch_hvp(session, semaphore, link, headers) for link in hvp_links]
         results = await asyncio.gather(*tasks)
-        for res in results:
+        for item, res in zip(hvp_items, results):
+            chapter_title = item.get("chapter_title") or "Main Chapter"
             for vid_id in res["youtube_ids"]:
                 videos.append({
                     "youtube_id": vid_id,
                     "title": res["title"],
                     "duration": 0,
-                    "chapter_title": res["title"],
+                    "chapter_title": chapter_title,
                 })
 
     return {
@@ -846,7 +928,7 @@ def import_course(body: ImportRequest) -> dict[str, Any]:
     chapter_order = 0
     video_orders: dict[int, int] = {}
     for video in extracted["videos"]:
-        ch_title = video["chapter_title"]
+        ch_title = _normalize_chapter_group(video.get("chapter_title"), video.get("title"))
         if ch_title not in chapter_map:
             cur.execute(
                 "INSERT INTO chapters(course_id, title, order_index) VALUES (?, ?, ?)",
@@ -858,6 +940,13 @@ def import_course(body: ImportRequest) -> dict[str, Any]:
 
         chapter_id = chapter_map[ch_title]
         transcript = "" # Skip transcript for fast import
+        video_duration = int(
+            video["video_duration"]
+            if "video_duration" in video
+            else video.get("duration", 0)
+        )
+        if video_duration <= 0:
+            video_duration = _resolve_youtube_duration_seconds(video.get("youtube_id", ""))
         cur.execute(
             """
             INSERT INTO videos(
@@ -868,7 +957,7 @@ def import_course(body: ImportRequest) -> dict[str, Any]:
                 chapter_id,
                 video["youtube_id"],
                 video["title"],
-                video["video_duration"] if "video_duration" in video else video.get("duration", 0), # Handle both keys
+                video_duration,
                 transcript,
                 video_orders[chapter_id],
             ),

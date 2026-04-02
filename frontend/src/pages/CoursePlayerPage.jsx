@@ -211,7 +211,10 @@ export default function CoursePlayerPage() {
                     onClick={() => toggleChapterOpen(ch.id)}
                   >
                     <span className="flex items-center gap-2">
-                      📁 {ch.title}
+                      <span>📁 {ch.title}</span>
+                      <span className="text-[11px] font-normal text-gray-500 dark:text-gray-300">
+                        {ch.total_duration_label || "00:00:00"}
+                      </span>
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-300">
                       {videosDone}/{ch.videos.length}
