@@ -49,6 +49,9 @@ export default function Header() {
           <NavLink to="/workspace" className={navClass}>
             مساحة النصوص 📝
           </NavLink>
+          <NavLink to="/quiz-extractor" className={navClass}>
+            استخرج الاختبار
+          </NavLink>
         </nav>
 
         <div className="flex items-center gap-2">

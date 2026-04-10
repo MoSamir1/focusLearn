@@ -11,6 +11,7 @@ import copy
 import time
 import hashlib
 import logging
+from urllib.parse import urljoin, urlparse, parse_qs
 from threading import Semaphore
 from datetime import datetime
 from functools import lru_cache
@@ -36,6 +37,11 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import arabic_reshaper
 from bidi.algorithm import get_display
+from extract_quiz_questions import (
+    deduplicate_questions,
+    extract_questions_from_html,
+    fetch_attempt_pages,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "study.db"
@@ -517,6 +523,51 @@ def _extract_hvp_links_with_chapters(page_html: str) -> list[dict[str, str]]:
     return resolved
 
 
+def _extract_mahara_course_url_from_html(page_html: str, base_url: str) -> str | None:
+    absolute_match = re.search(
+        r"https?://maharatech\.gov\.eg/course/view\.php\?id=\d+",
+        page_html,
+        flags=re.IGNORECASE,
+    )
+    if absolute_match:
+        return absolute_match.group(0)
+
+    relative_match = re.search(
+        r"(?:href=\"|href=\'|\b)(/course/view\.php\?id=\d+)",
+        page_html,
+        flags=re.IGNORECASE,
+    )
+    if relative_match:
+        return urljoin(base_url, relative_match.group(1))
+
+    return None
+
+
+async def _resolve_mahara_course_url(url: str, cookie: str | None = None) -> str | None:
+    headers = _request_headers(cookie)
+    timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT_SECONDS)
+    connector = aiohttp.TCPConnector(limit=HTTP_CONNECTOR_LIMIT)
+
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        async with session.get(url, headers=headers) as response:
+            response.raise_for_status()
+            response_text = await response.text()
+            return _extract_mahara_course_url_from_html(response_text, str(response.url))
+
+
+def _normalize_youtube_import_url(url: str) -> str:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if "youtube.com" not in host and "youtu.be" not in host:
+        return url
+
+    query = parse_qs(parsed.query)
+    playlist_id = (query.get("list") or [""])[0].strip()
+    if playlist_id:
+        return f"https://www.youtube.com/playlist?list={playlist_id}"
+    return url
+
+
 def _normalize_chapter_group(chapter_title: str | None, video_title: str | None) -> str:
     chapter_candidate = (chapter_title or "").strip()
     video_candidate = (video_title or "").strip()
@@ -672,7 +723,11 @@ def extract_course(url: str, cookie: str | None = None, force_refresh: bool = Fa
             if "course/view.php" in url:
                 fallback = asyncio.run(fallback_extract_full_course(url, cookie))
             else:
-                fallback = asyncio.run(fallback_extract_from_html(url, cookie))
+                resolved_course_url = asyncio.run(_resolve_mahara_course_url(url, cookie))
+                if resolved_course_url:
+                    fallback = asyncio.run(fallback_extract_full_course(resolved_course_url, cookie))
+                else:
+                    fallback = asyncio.run(fallback_extract_from_html(url, cookie))
             if fallback.get("videos"):
                 _set_cached_mahara_course(url, cookie, fallback)
                 return fallback
@@ -683,6 +738,8 @@ def extract_course(url: str, cookie: str | None = None, force_refresh: bool = Fa
                 detail=f"Import failed. Check URL and cookie/session validity. Error: {fallback_exc}",
             ) from fallback_exc
         raise HTTPException(status_code=400, detail="Could not extract course from URL.")
+
+    import_url = _normalize_youtube_import_url(url)
 
     ydl_opts: dict[str, Any] = {
         "quiet": True,
@@ -707,7 +764,7 @@ def extract_course(url: str, cookie: str | None = None, force_refresh: bool = Fa
             ydl_opts["http_headers"] = {"Cookie": cookie_header}
     try:
         with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(import_url, download=False)
     except Exception as exc:
         info = None
     finally:
@@ -719,7 +776,7 @@ def extract_course(url: str, cookie: str | None = None, force_refresh: bool = Fa
                 pass
     if not info:
         try:
-            fallback = asyncio.run(fallback_extract_from_html(url, cookie))
+            fallback = asyncio.run(fallback_extract_from_html(import_url, cookie))
             if fallback["videos"]:
                 return fallback
         except Exception as fallback_exc:
@@ -781,6 +838,11 @@ class CompletionUpdate(BaseModel):
     completed: bool
 
 
+class QuizExtractRequest(BaseModel):
+    attempt_url: str
+    session_cookie: str
+
+
 @app.on_event("startup")
 def startup() -> None:
     init_db()
@@ -790,6 +852,54 @@ def startup() -> None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def quiz_questions_to_markdown(questions: list[dict[str, Any]]) -> str:
+    lines: list[str] = ["# Quiz Questions", ""]
+    for idx, item in enumerate(questions, 1):
+        number = item.get("number") or f"Q{idx}"
+        question_text = (item.get("question") or "").strip()
+        lines.append(f"## {number}")
+        lines.append(question_text)
+        lines.append("")
+        choices = item.get("choices") or []
+        if choices:
+            for choice in choices:
+                lines.append(f"- {choice}")
+            lines.append("")
+    return "\n".join(lines).strip()
+
+
+@app.post("/quiz/extract")
+def extract_quiz(body: QuizExtractRequest) -> dict[str, Any]:
+    attempt_url = (body.attempt_url or "").strip()
+    session_cookie = (body.session_cookie or "").strip()
+    if not attempt_url:
+        raise HTTPException(status_code=400, detail="attempt_url is required")
+    if not session_cookie:
+        raise HTTPException(status_code=400, detail="session_cookie is required")
+
+    try:
+        html_pages = fetch_attempt_pages(attempt_url, session_cookie)
+        all_questions: list[dict[str, Any]] = []
+        for page_number in sorted(html_pages.keys()):
+            page_questions = extract_questions_from_html(html_pages[page_number])
+            for question in page_questions:
+                question["page"] = page_number
+            all_questions.extend(page_questions)
+
+        questions = deduplicate_questions(all_questions)
+        return {
+            "attempt_url": attempt_url,
+            "total_pages": len(html_pages),
+            "total_questions": len(questions),
+            "questions": questions,
+            "markdown": quiz_questions_to_markdown(questions),
+        }
+    except requests.HTTPError as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch quiz pages: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Quiz extraction failed: {exc}") from exc
 
 
 @app.get("/courses")

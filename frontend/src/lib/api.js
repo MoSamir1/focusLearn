@@ -70,4 +70,6 @@ export const api = {
   deleteChapter: (chapterId) =>
     req(`/api/chapters/${chapterId}`, { method: "DELETE" }),
   deleteVideo: (videoId) => req(`/api/videos/${videoId}`, { method: "DELETE" }),
+  extractQuiz: (payload) =>
+    req("/quiz/extract", { method: "POST", body: JSON.stringify(payload) }),
 };

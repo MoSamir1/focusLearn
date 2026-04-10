@@ -1,0 +1,265 @@
+{
+  "attempt_url": "https://maharatech.gov.eg/mod/quiz/attempt.php?attempt=193660&cmid=18653",
+  "total_pages": 23,
+  "total_questions": 23,
+  "questions": [
+    {
+      "question_id": "question-194382-1",
+      "number": "سؤال 1",
+      "question": "Why is retrieval important in a RAG (Retrieval-Augmented Generation) pipeline?",
+      "choices": [
+        "It ensures the assistant writes only in one language",
+        "It fetches relevant information to ground the model’s generation",
+        "It replaces the need for a language model",
+        "It controls the output format"
+      ],
+      "page": 0
+    },
+    {
+      "question_id": "question-194382-2",
+      "number": "سؤال 2",
+      "question": "Fine-tuning always requires large datasets and long training times.",
+      "choices": [
+        "False",
+        "True"
+      ],
+      "page": 1
+    },
+    {
+      "question_id": "question-194382-3",
+      "number": "سؤال 3",
+      "question": "Foundation models typically require less computational power than traditional models.",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "page": 2
+    },
+    {
+      "question_id": "question-194382-4",
+      "number": "سؤال 4",
+      "question": "Function calling allows the assistant to define and call external APIs dynamically.",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "page": 3
+    },
+    {
+      "question_id": "question-194382-5",
+      "number": "سؤال 5",
+      "question": "In a RAG pipeline, what is the correct order of steps for generating a grounded response?",
+      "choices": [
+        "Embed → Retrieve → Generate",
+        "Generate → Retrieve → Rerank",
+        "Tokenize → Generate → Retrieve",
+        "Retrieve → Generate"
+      ],
+      "page": 4
+    },
+    {
+      "question_id": "question-194382-6",
+      "number": "سؤال 6",
+      "question": "In the Chat API, what is the role of the \"system\" message?",
+      "choices": [
+        "To return structured output",
+        "To execute functions",
+        "To store previous outputs",
+        "To define the assistant’s behavior and persona"
+      ],
+      "page": 5
+    },
+    {
+      "question_id": "question-194382-7",
+      "number": "سؤال 7",
+      "question": "In the Chat API, what is the role of the “user” message?",
+      "choices": [
+        "Initiates the assistant’s response",
+        "Sets the system behavior",
+        "Contains the assistant’s output",
+        "Stores training instructions"
+      ],
+      "page": 6
+    },
+    {
+      "question_id": "question-194382-8",
+      "number": "سؤال 8",
+      "question": "Open-source models are often trained using the same datasets as proprietary models.",
+      "choices": [
+        "False",
+        "True"
+      ],
+      "page": 7
+    },
+    {
+      "question_id": "question-194382-9",
+      "number": "سؤال 9",
+      "question": "RAG combines language generation with external knowledge retrieval.",
+      "choices": [
+        "False",
+        "True"
+      ],
+      "page": 8
+    },
+    {
+      "question_id": "question-194382-10",
+      "number": "سؤال 10",
+      "question": "The max_tokens parameter limits the size of the model's training dataset.",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "page": 9
+    },
+    {
+      "question_id": "question-194382-11",
+      "number": "سؤال 11",
+      "question": "The OpenAI API allows integration only through Python.",
+      "choices": [
+        "False",
+        "True"
+      ],
+      "page": 10
+    },
+    {
+      "question_id": "question-194382-12",
+      "number": "سؤال 12",
+      "question": "What capability allows the model to process visual input?",
+      "choices": [
+        "Function calling",
+        "Data validation",
+        "Vision model",
+        "Image generation"
+      ],
+      "page": 11
+    },
+    {
+      "question_id": "question-194382-13",
+      "number": "سؤال 13",
+      "question": "What distinguishes foundation models from traditional machine learning models?",
+      "choices": [
+        "They are trained only on structured data",
+        "They can be fine-tuned for a variety of downstream tasks",
+        "They are designed for a single narrow task",
+        "They require manual rule definition"
+      ],
+      "page": 12
+    },
+    {
+      "question_id": "question-194382-14",
+      "number": "سؤال 14",
+      "question": "What is a benefit of fine-tuning a model compared to using prompting alone?",
+      "choices": [
+        "Access to more system prompts",
+        "Lower cost for API calls",
+        "More accurate outputs on domain-specific tasks",
+        "Faster training time"
+      ],
+      "page": 13
+    },
+    {
+      "question_id": "question-194382-15",
+      "number": "سؤال 15",
+      "question": "What is a key advantage of using open-source generative AI models?",
+      "choices": [
+        "They are hosted exclusively by Google",
+        "They require no fine-tuning",
+        "They are always more accurate than proprietary models",
+        "They offer transparency and customization"
+      ],
+      "page": 14
+    },
+    {
+      "question_id": "question-194382-16",
+      "number": "سؤال 16",
+      "question": "What is typically the first step in interacting with OpenAI’s API?",
+      "choices": [
+        "Installing a browser extension",
+        "Uploading training data",
+        "Sending an image file",
+        "Authenticating with an API key"
+      ],
+      "page": 15
+    },
+    {
+      "question_id": "question-194382-17",
+      "number": "سؤال 17",
+      "question": "What parameter is commonly used in the Chat API to control the randomness of responses?",
+      "choices": [
+        "role",
+        "length",
+        "temperature",
+        "max_responses"
+      ],
+      "page": 16
+    },
+    {
+      "question_id": "question-194382-18",
+      "number": "سؤال 18",
+      "question": "Which API feature allows models to invoke specific actions or functions based on user intent?",
+      "choices": [
+        "Function calling",
+        "Temperature tuning",
+        "Role assignment",
+        "Prompt history"
+      ],
+      "page": 17
+    },
+    {
+      "question_id": "question-194382-19",
+      "number": "سؤال 19",
+      "question": "Which of the following best describes the difference between GPT-3.5 and GPT-4 in the Chat API?",
+      "choices": [
+        "GPT-3.5 supports images, GPT-4 does not",
+        "GPT-4 is open source, GPT-3.5 is not",
+        "GPT-4 has better reasoning capabilities and longer context",
+        "GPT-3.5 uses the Function calling API, GPT-4 does not"
+      ],
+      "page": 18
+    },
+    {
+      "question_id": "question-194382-20",
+      "number": "سؤال 20",
+      "question": "Which of the following is an example of an open-source GenAI model?",
+      "choices": [
+        "GPT-4",
+        "LLaMA",
+        "Gemini",
+        "Claude"
+      ],
+      "page": 19
+    },
+    {
+      "question_id": "question-194382-21",
+      "number": "سؤال 21",
+      "question": "Which tool is best suited for customizing responses using structured data retrieval in OpenAI's ecosystem?",
+      "choices": [
+        "GPT Playground",
+        "DALL·E Editor",
+        "File search API",
+        "Whisper API"
+      ],
+      "page": 20
+    },
+    {
+      "question_id": "question-194382-22",
+      "number": "سؤال 22",
+      "question": "You can only send one user message at a time in a chat API call.",
+      "choices": [
+        "False",
+        "True"
+      ],
+      "page": 21
+    },
+    {
+      "question_id": "question-194382-23",
+      "number": "سؤال 23",
+      "question": "You can use the Chat API to assign multiple roles in a single message.",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "page": 22
+    }
+  ]
+}
