@@ -824,6 +824,8 @@ class DownloadStartRequest(BaseModel):
     video_ids: list[int]
     quality: str = "720"
     save_path: str = ""
+    audio_only: bool = False
+    numbered_files: bool = True
 
 
 class DownloadPathConfig(BaseModel):
@@ -852,6 +854,24 @@ def startup() -> None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/browse-dirs")
+def browse_dirs(path: str = "/home") -> dict[str, Any]:
+    """List subdirectories at the given path for the folder picker."""
+    target = Path(path).expanduser().resolve()
+    if not target.exists():
+        raise HTTPException(status_code=400, detail=f"المسار غير موجود: {target}")
+    if not target.is_dir():
+        raise HTTPException(status_code=400, detail="المسار ليس مجلداً")
+    entries = []
+    try:
+        for item in sorted(target.iterdir()):
+            if item.is_dir() and not item.name.startswith("."):
+                entries.append({"name": item.name})
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="ليس لديك صلاحية لتصفح هذا المجلد")
+    return {"current": str(target), "entries": entries}
 
 
 def quiz_questions_to_markdown(questions: list[dict[str, Any]]) -> str:
@@ -1179,13 +1199,16 @@ def _queue_download_job(
     download_path: str,
     background_tasks: BackgroundTasks,
     loop: asyncio.AbstractEventLoop | None = None,
+    audio_only: bool = False,
+    numbered_files: bool = True,
 ) -> dict[str, Any]:
     if not ids:
         raise HTTPException(status_code=400, detail="No selected IDs")
     conn = db_conn()
     try:
         targets = resolve_download_targets(conn, target_type, ids)
-        conn.execute("UPDATE settings SET download_path = ? WHERE id = 1", (download_path,))
+        if download_path:
+            conn.execute("UPDATE settings SET download_path = ? WHERE id = 1", (download_path,))
         if targets:
             conn.executemany(
                 "UPDATE videos SET download_status = ?, download_progress = ? WHERE id = ?",
@@ -1202,14 +1225,14 @@ def _queue_download_job(
     download_jobs[job_id] = {
         "status": "queued",
         "progress": 0,
-        "message": "Queued",
+        "message": "في قائمة الانتظار",
         "total": len(targets),
         "done": 0,
     }
     loop = loop or asyncio.get_running_loop()
     download_event_queues[job_id] = asyncio.Queue()
     download_event_loops[job_id] = loop
-    background_tasks.add_task(run_download, job_id, targets, quality, download_path)
+    background_tasks.add_task(run_download, job_id, targets, quality, download_path, audio_only, numbered_files)
     return {"job_id": job_id}
 
 
@@ -1240,14 +1263,26 @@ def queue_transcript_job(target_type: str, ids: list[int], background_tasks: Bac
     return job_id
 
 
-def run_download(job_id: str, targets: list[dict[str, Any]], quality: str, output_path: str) -> None:
-    Path(output_path).mkdir(parents=True, exist_ok=True)
+def run_download(
+    job_id: str,
+    targets: list[dict[str, Any]],
+    quality: str,
+    output_path: str,
+    audio_only: bool = False,
+    numbered_files: bool = True,
+) -> None:
+    if output_path:
+        Path(output_path).mkdir(parents=True, exist_ok=True)
+    else:
+        output_path = str(Path.home() / "Downloads")
+        Path(output_path).mkdir(parents=True, exist_ok=True)
+
     job_state = download_jobs.get(job_id, {})
     job_state.update(
         {
           "status": "running",
           "progress": 0,
-          "message": "Starting...",
+          "message": "جاري البدء...",
           "current_title": None,
           "current_id": None,
           "cancelled": job_state.get("cancelled", False),
@@ -1274,14 +1309,23 @@ def run_download(job_id: str, targets: list[dict[str, Any]], quality: str, outpu
     state = {"done": 0}
     failures = 0
 
+    if audio_only:
+        fmt = "bestaudio/best"
+        postprocessors = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
+    else:
+        fmt = f"bestvideo[ext=mp4][height<={quality}]+bestaudio[ext=m4a]/bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best"
+        postprocessors = [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}]
+
     base_opts: dict[str, Any] = {
-        "format": f"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]",
-        "outtmpl": str(Path(output_path) / "%(title)s.%(ext)s"),
+        "format": fmt,
         "quiet": True,
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
+        "postprocessors": postprocessors,
     }
+    if not audio_only:
+        base_opts["merge_output_format"] = "mp4"
 
     def cleanup_partial_files() -> None:
         try:
@@ -1292,16 +1336,23 @@ def run_download(job_id: str, targets: list[dict[str, Any]], quality: str, outpu
 
     try:
         with download_semaphore:
-            for target in targets:
+            for file_index, target in enumerate(targets, start=1):
                 if download_jobs[job_id].get("cancelled"):
                     download_jobs[job_id]["status"] = "canceled"
-                    download_jobs[job_id]["message"] = "Canceled by user"
+                    download_jobs[job_id]["message"] = "تم الإلغاء"
                     emit({"type": "status", "status": "canceled"})
                     break
 
                 video_db_id = target["id"]
                 video_id = target["youtube_id"]
                 video_title = target.get("title") or f"Video {video_db_id}"
+
+                # Build filename template with optional numbering prefix
+                if numbered_files:
+                    prefix = f"#{file_index:03d} "
+                    outtmpl = str(Path(output_path) / f"{prefix}%(title)s.%(ext)s")
+                else:
+                    outtmpl = str(Path(output_path) / "%(title)s.%(ext)s")
 
                 def make_progress_hook(video_pk: int) -> Any:
                     def hook(d: dict[str, Any]) -> None:
@@ -1321,6 +1372,7 @@ def run_download(job_id: str, targets: list[dict[str, Any]], quality: str, outpu
 
                 ydl_opts = {
                     **base_opts,
+                    "outtmpl": outtmpl,
                     "progress_hooks": [make_progress_hook(video_db_id)],
                 }
 
@@ -1341,6 +1393,14 @@ def run_download(job_id: str, targets: list[dict[str, Any]], quality: str, outpu
                                 file_path = requested[0]["filepath"]
                             elif info.get("_filename"):
                                 file_path = info["_filename"]
+                        # Postprocessors might change the extension, so check alternatives
+                        if file_path and not os.path.exists(file_path):
+                            stem = os.path.splitext(file_path)[0]
+                            for ext in (".mp4", ".mp3", ".m4a", ".opus", ".ogg", ".wav"):
+                                candidate = stem + ext
+                                if os.path.exists(candidate):
+                                    file_path = candidate
+                                    break
                         if file_path and os.path.exists(file_path):
                             conn.execute(
                                 "UPDATE videos SET local_path = ? WHERE id = ?",
@@ -1399,7 +1459,16 @@ async def start_download(body: DownloadRequest, background_tasks: BackgroundTask
 @app.post("/api/downloads/start")
 async def start_download_v2(body: DownloadStartRequest, background_tasks: BackgroundTasks) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
-    return _queue_download_job("video", body.video_ids, body.quality, body.save_path, background_tasks, loop)
+    return _queue_download_job(
+        "video",
+        body.video_ids,
+        body.quality,
+        body.save_path,
+        background_tasks,
+        loop,
+        audio_only=body.audio_only,
+        numbered_files=body.numbered_files,
+    )
 
 
 @app.post("/api/downloads/configure-path")

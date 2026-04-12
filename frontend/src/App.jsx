@@ -4,6 +4,7 @@ import { Toaster, toast } from "react-hot-toast";
 import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
 import ImportPage from "./pages/ImportPage";
+import VideoDownloadPage from "./pages/VideoDownloadPage";
 import CoursePlayerPage from "./pages/CoursePlayerPage";
 import TextWorkspace from "./pages/TextWorkspace";
 import QuizExtractorPage from "./pages/QuizExtractorPage";
@@ -11,7 +12,6 @@ import { useUiStore } from "./store/useUiStore";
 
 export default function App() {
   const { darkMode, language } = useUiStore();
-
   const offlineToastRef = useRef(null);
 
   useEffect(() => {
@@ -37,11 +37,7 @@ export default function App() {
         offlineToastRef.current = null;
       }
     }
-
-    if (!navigator.onLine) {
-      showOfflineToast();
-    }
-
+    if (!navigator.onLine) showOfflineToast();
     const handleOnline = () => dismissOfflineToast();
     const handleOffline = () => showOfflineToast();
     window.addEventListener("online", handleOnline);
@@ -52,24 +48,26 @@ export default function App() {
       dismissOfflineToast();
     };
   }, []);
+
   return (
     <div
       dir={language === "ar" ? "rtl" : "ltr"}
-      className={`${language === "ar" ? "font-cairo" : "font-inter"} min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100`}
+      className={`font-cairo min-h-screen bg-gray-100 text-gray-900 dark:bg-[#0B0F1A] dark:text-gray-100`}
     >
       <Toaster
         position="top-center"
         toastOptions={{
           className:
-            "rounded-xl border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100",
+            "!rounded-xl !border !border-gray-200 !bg-white !text-gray-900 !shadow-card dark:!border-gray-700 dark:!bg-gray-900 dark:!text-gray-100 font-cairo",
         }}
       />
-      <div className="mx-auto max-w-7xl p-4">
+      <div className="w-full px-4 py-4 max-w-[1400px] mx-auto">
         <Header />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/courses" element={<HomePage />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/downloads" element={<VideoDownloadPage />} />
           <Route path="/quiz-extractor" element={<QuizExtractorPage />} />
           <Route path="/courses/:courseId" element={<CoursePlayerPage />} />
           <Route path="/workspace" element={<TextWorkspace />} />

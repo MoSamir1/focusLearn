@@ -5,25 +5,36 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        xl: "1rem",
+        xl: "0.875rem",
+        "2xl": "1.25rem",
       },
       boxShadow: {
-        soft: "0 4px 20px rgba(15, 23, 42, 0.08)",
+        soft: "0 2px 12px rgba(0,0,0,0.08)",
+        card: "0 4px 24px rgba(0,0,0,0.10)",
+        glow: "0 0 20px rgba(99,102,241,0.25)",
       },
       colors: {
-        lightBg: "#F8FAFC",
-        lightCard: "#FFFFFF",
-        lightText: "#1E293B",
-        lightSecondary: "#64748B",
-        darkBg: "#0F172A",
-        darkCard: "#1E293B",
-        darkText: "#E2E8F0",
-        brand: "#3B82F6",
-        brandDark: "#60A5FA",
+        brand: "#6366F1",
+        brandDark: "#818CF8",
+        brandHover: "#4F46E5",
+        success: "#10B981",
+        danger: "#EF4444",
+        warning: "#F59E0B",
       },
       fontFamily: {
         inter: ["Inter", "sans-serif"],
         cairo: ["Cairo", "sans-serif"],
+      },
+      animation: {
+        "fade-in": "fadeIn 0.2s ease-in-out",
+        "slide-up": "slideUp 0.2s ease-out",
+      },
+      keyframes: {
+        fadeIn: { "0%": { opacity: 0 }, "100%": { opacity: 1 } },
+        slideUp: {
+          "0%": { opacity: 0, transform: "translateY(8px)" },
+          "100%": { opacity: 1, transform: "translateY(0)" },
+        },
       },
     },
   },

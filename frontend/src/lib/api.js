@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = `http://${window.location.hostname}:8000`;
 
 async function req(path, options = {}) {
   const { headers: customHeaders, ...rest } = options;
@@ -72,4 +72,6 @@ export const api = {
   deleteVideo: (videoId) => req(`/api/videos/${videoId}`, { method: "DELETE" }),
   extractQuiz: (payload) =>
     req("/quiz/extract", { method: "POST", body: JSON.stringify(payload) }),
+  browseDirs: (dirPath) =>
+    req(`/api/browse-dirs?path=${encodeURIComponent(dirPath)}`),
 };

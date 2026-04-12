@@ -4,176 +4,69 @@ import CollapsibleCourseTree from "../components/CollapsibleCourseTree";
 import { api } from "../lib/api";
 
 export default function ImportPage() {
-  // Input State
   const [courseUrl, setCourseUrl] = useState(
     () => localStorage.getItem("import_url") || "",
   );
   const [cookie, setCookie] = useState(
     () => localStorage.getItem("import_cookie") || "",
   );
-  const [quality, setQuality] = useState("720");
-  const [downloadPath, setDownloadPath] = useState("");
+  const [showCookie, setShowCookie] = useState(false);
   const [courses, setCourses] = useState([]);
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
+  const [importing, setImporting] = useState(false);
 
-  // Selection State
-  const [selectedVideosTranscript, setSelectedVideosTranscript] = useState(
-    () => new Set(),
-  );
-  const [selectedVideosDownload, setSelectedVideosDownload] = useState(
-    () => new Set(),
-  );
-
-  // Job States
-  const [downloadState, setDownloadState] = useState(null);
+  const [selectedVideos, setSelectedVideos] = useState(() => new Set());
   const [transcriptState, setTranscriptState] = useState(null);
-  const downloadTimerRef = useRef(null);
-  const downloadNotifiedRef = useRef(false);
 
-  // Error States
   const [error, setError] = useState("");
   const [transcriptError, setTranscriptError] = useState("");
 
   // Persistence
-  useEffect(() => {
-    localStorage.setItem("import_url", courseUrl);
-  }, [courseUrl]);
-
-  useEffect(() => {
-    localStorage.setItem("import_cookie", cookie);
-  }, [cookie]);
+  useEffect(() => { localStorage.setItem("import_url", courseUrl); }, [courseUrl]);
+  useEffect(() => { localStorage.setItem("import_cookie", cookie); }, [cookie]);
 
   async function refresh() {
     try {
-      const [coursesData, settings] = await Promise.all([
-        api.listCourses(),
-        api.getSettings(),
-      ]);
-      setCourses(coursesData);
-      setDownloadPath(settings.download_path || "");
+      const data = await api.listCourses();
+      setCourses(data);
       setTreeRefreshKey(Date.now());
     } catch (e) {
       console.error("Refresh failed", e);
     }
   }
 
-  useEffect(() => {
-    refresh().catch((e) => setError(e.message));
-  }, []);
+  useEffect(() => { refresh().catch((e) => setError(e.message)); }, []);
 
-  useEffect(() => {
-    return () => {
-      if (downloadTimerRef.current) {
-        clearInterval(downloadTimerRef.current);
-      }
-    };
-  }, []);
-
-  // Handlers
   async function importCourse() {
+    if (!courseUrl.trim()) { setError("من فضلك أدخل رابط الكورس"); return; }
     setError("");
+    setImporting(true);
     try {
       await api.importCourse({ course_url: courseUrl, cookie: cookie || null });
       await refresh();
+      toast.success("تم استيراد الكورس بنجاح!");
     } catch (e) {
       setError(e.message);
-    }
-  }
-
-  async function startDownload() {
-    setError("");
-    const ids = Array.from(selectedVideosDownload);
-    if (!ids.length) {
-      setError("Select at least one video.");
-      return;
-    }
-    try {
-      downloadNotifiedRef.current = false;
-      if (downloadTimerRef.current) {
-        clearInterval(downloadTimerRef.current);
-      }
-      setDownloadState({
-        status: "running",
-        progress: 0,
-        message: "Starting...",
-      });
-      const { job_id } = await api.startDownload({
-        video_ids: ids,
-        quality,
-        save_path: downloadPath,
-      });
-      setDownloadState((prev) => ({ ...(prev || {}), job_id }));
-      downloadTimerRef.current = setInterval(async () => {
-        const status = await api.getDownloadStatus(job_id);
-        setDownloadState(status);
-        if (
-          status.status === "done" ||
-          status.status === "error" ||
-          status.status === "canceled"
-        ) {
-          clearInterval(downloadTimerRef.current);
-          downloadTimerRef.current = null;
-          if (!downloadNotifiedRef.current) {
-            if (status.status === "done") {
-              const title = status.current_title || "الفيديوهات المختارة";
-              toast.success(`تم تحميل الفيديو: ${title}`);
-            } else if (status.status === "error") {
-              toast.error(`فشل التحميل: ${status.message || "غير معروف"}`);
-            }
-            downloadNotifiedRef.current = true;
-          }
-          refresh();
-        }
-      }, 1500);
-    } catch (e) {
-      setError(e.message);
-      toast.error(`فشل التحميل: ${e.message}`);
-    }
-  }
-
-  async function cancelDownload() {
-    if (!downloadState?.job_id) return;
-    try {
-      await api.cancelDownload(downloadState.job_id);
-      setDownloadState((prev) => ({
-        ...(prev || {}),
-        status: "canceled",
-        message: "Cancel requested",
-      }));
-      if (downloadTimerRef.current) {
-        clearInterval(downloadTimerRef.current);
-        downloadTimerRef.current = null;
-      }
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      toast.error("فشل الاستيراد");
+    } finally {
+      setImporting(false);
     }
   }
 
   async function importTranscripts() {
     setTranscriptError("");
-    setTranscriptState({ status: "running", progress: 0, done: 0, total: 0 });
-    const ids = Array.from(selectedVideosTranscript);
-    if (!ids.length) {
-      setTranscriptError("Select at least one video.");
-      setTranscriptState(null);
-      return;
-    }
+    const ids = Array.from(selectedVideos);
+    if (!ids.length) { setTranscriptError("اختر فيديو واحد على الأقل"); return; }
+    setTranscriptState({ status: "running", progress: 0, done: 0, total: ids.length });
     try {
-      const { job_id } = await api.importTranscripts({
-        target_type: "video",
-        ids,
-      });
+      const { job_id } = await api.importTranscripts({ target_type: "video", ids });
       const timer = setInterval(async () => {
         const status = await api.getTranscriptStatus(job_id);
         setTranscriptState(status);
-        if (status.status === "done" || status.status === "error") {
+        if (["done", "error"].includes(status.status)) {
           clearInterval(timer);
-          if (status.status === "done") {
-            toast.success("تم جلب النص بنجاح");
-          } else {
-            toast.error(`فشل جلب النص: ${status.message || "غير معروف"}`);
-          }
+          if (status.status === "done") toast.success("✅ تم جلب النصوص بنجاح");
+          else toast.error(`فشل جلب النص: ${status.message || "غير معروف"}`);
           await refresh();
         }
       }, 1500);
@@ -183,220 +76,134 @@ export default function ImportPage() {
     }
   }
 
-  async function copyToClipboard(courseId) {
-    try {
-      const res = await fetch(api.exportCourse(courseId, "json"));
-      const data = await res.json();
-      const text = data.videos
-        .map((v) => `${v.title}\n${v.transcript || "No transcript"}`)
-        .join("\n\n");
-      await navigator.clipboard.writeText(text);
-      alert("Copied structures & transcripts to clipboard!");
-    } catch (e) {
-      alert("Failed to copy: " + e.message);
-    }
-  }
+  const card = "rounded-2xl border border-gray-200/80 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-[#111827]";
+  const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-[#0B0F1A] dark:text-gray-100 dark:focus:border-brandDark";
+  const btnPrimary = "rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-90 transition disabled:opacity-50";
 
   return (
-    <section className="space-y-6 text-gray-900 dark:text-gray-100">
-      {/* 1. Import Course Structure */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-soft dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">
-          1. Import Course Structure
+    <section className="space-y-5 animate-fade-in text-gray-900 dark:text-gray-100">
+
+      {/* ── 1. Import Course ── */}
+      <div className={card}>
+        <h2 className="mb-4 flex items-center gap-2 text-base font-bold">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">1</span>
+          استيراد كورس جديد
         </h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          <input
-            value={courseUrl}
-            onChange={(e) => setCourseUrl(e.target.value)}
-            placeholder="Course URL (Mahara / YouTube)"
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-          />
-          <textarea
-            value={cookie}
-            onChange={(e) => setCookie(e.target.value)}
-            placeholder="MoodleSession Cookie (for private content)"
-            className="min-h-24 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-          />
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              رابط الكورس
+            </label>
+            <input
+              value={courseUrl}
+              onChange={(e) => setCourseUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && importCourse()}
+              placeholder="https://maharatech.gov.eg/course/view.php?id=..."
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                MoodleSession Cookie <span className="normal-case font-normal text-gray-400">(للكورسات الخاصة)</span>
+              </label>
+              <button
+                onClick={() => setShowCookie((v) => !v)}
+                className="text-xs text-brand dark:text-brandDark"
+              >
+                {showCookie ? "إخفاء" : "إظهار"}
+              </button>
+            </div>
+            <textarea
+              value={cookie}
+              onChange={(e) => setCookie(e.target.value)}
+              placeholder="MoodleSession=abc123..."
+              rows={showCookie ? 3 : 1}
+              className={`${inputCls} resize-none`}
+              style={{ WebkitTextSecurity: showCookie ? "none" : "disc" }}
+            />
+          </div>
         </div>
-        <div className="mt-3 flex justify-end">
+        <div className="mt-4 flex items-center justify-between gap-3">
+          {error && (
+            <p className="flex-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+              {error}
+            </p>
+          )}
           <button
             onClick={importCourse}
-            className="rounded-xl bg-brand px-6 py-2 text-white font-medium hover:opacity-90 transition dark:bg-brandDark"
+            disabled={importing}
+            className={`${btnPrimary} mr-auto flex items-center gap-2`}
           >
-            Import Structure ▶
+            {importing ? (
+              <><span className="animate-spin">⏳</span> جاري الاستيراد...</>
+            ) : (
+              "استيراد الكورس ▶"
+            )}
           </button>
         </div>
       </div>
 
-      {/* 2. Transcripts */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-soft dark:border-gray-700 dark:bg-gray-900">
-        <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            2. Transcripts
+      {/* ── 2. Transcripts ── */}
+      <div className={card}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-base font-bold">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">2</span>
+            جلب النصوص (Transcripts)
           </h2>
-          <button
-            onClick={importTranscripts}
-            disabled={transcriptState?.status === "running"}
-            className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 dark:bg-brandDark"
-          >
-            Fetch Selected ▶
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
+              {selectedVideos.size} محدد
+            </span>
+            <button
+              onClick={importTranscripts}
+              disabled={transcriptState?.status === "running" || selectedVideos.size === 0}
+              className={btnPrimary}
+            >
+              جلب المحدد ▶
+            </button>
+          </div>
         </div>
-        <p className="mb-3 text-sm text-gray-700 dark:text-gray-200">
-          Selected videos: {selectedVideosTranscript.size}
-        </p>
-        <div className="mb-4 max-h-80 overflow-auto space-y-3">
+        <div className="max-h-80 overflow-auto space-y-2 rounded-xl border border-gray-100 bg-gray-50/50 p-2 dark:border-white/5 dark:bg-white/5">
           {courses.map((course) => (
             <CollapsibleCourseTree
               key={`trans-${course.id}`}
               course={course}
               refreshKey={treeRefreshKey}
-              selectedVideos={selectedVideosTranscript}
-              setSelectedVideos={setSelectedVideosTranscript}
+              selectedVideos={selectedVideos}
+              setSelectedVideos={setSelectedVideos}
               onCourseRefresh={refresh}
               showTranscriptControls={true}
               showStatus={true}
-              showExports={true}
+              showExports={false}
+              showDeleteButtons={false}
             />
           ))}
           {!courses.length && (
-            <p className="py-6 text-center text-gray-500 dark:text-gray-300">
-              No courses imported yet. Start by importing a URL above.
+            <p className="py-8 text-center text-sm text-gray-400">
+              لا توجد كورسات. استورد كورساً أولاً من القسم أعلاه.
             </p>
           )}
         </div>
         {transcriptState && (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+          <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
               <div
-                className="h-full bg-brand transition-all duration-300"
+                className="h-full bg-brand transition-all duration-300 rounded-full"
                 style={{ width: `${transcriptState.progress}%` }}
               />
             </div>
-            <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
               {transcriptState.status === "done"
-                ? "✅ All transcripts fetched and saved!"
+                ? "✅ تم جلب جميع النصوص!"
                 : transcriptState.status === "error"
-                  ? `❌ Error: ${transcriptState.message}`
-                  : `⏳ Processing: ${transcriptState.done || 0} / ${transcriptState.total || "?"} videos`}
+                  ? `❌ خطأ: ${transcriptState.message}`
+                  : `⏳ جاري المعالجة: ${transcriptState.done || 0} / ${transcriptState.total || "?"} فيديو`}
             </p>
           </div>
-        )}
-      </div>
-
-      {/* 3. Download Videos */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-soft dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">
-          3. Download Videos
-        </h2>
-        <p className="mb-3 text-sm text-gray-700 dark:text-gray-200">
-          Selected videos: {selectedVideosDownload.size}
-        </p>
-        <div className="mb-4 max-h-80 overflow-auto space-y-3">
-          {courses.map((course) => (
-            <CollapsibleCourseTree
-              key={`dl-${course.id}`}
-              course={course}
-              refreshKey={treeRefreshKey}
-              selectedVideos={selectedVideosDownload}
-              setSelectedVideos={setSelectedVideosDownload}
-              onCourseRefresh={refresh}
-              showTranscriptControls={false}
-              showStatus={true}
-              showExports={false}
-              statusKind="download"
-            />
-          ))}
-          {!courses.length && (
-            <p className="py-6 text-center text-gray-500 dark:text-gray-300">
-              No courses imported yet. Start by importing a URL above.
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div>
-            <h3 className="mb-2 text-sm font-bold text-gray-800 dark:text-gray-100">
-              Download Settings
-            </h3>
-            <div className="mb-3 flex flex-wrap gap-2">
-              {["360", "480", "720", "1080"].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setQuality(q)}
-                  className={`rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 ${
-                    quality === q
-                      ? "bg-brand text-white dark:bg-brandDark"
-                      : "bg-white text-gray-800 dark:bg-gray-800 dark:text-gray-100"
-                  }`}
-                >
-                  {q}p
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <div className="flex-1 flex items-center gap-2">
-                <input
-                  value={downloadPath}
-                  onChange={(e) => setDownloadPath(e.target.value)}
-                  placeholder="/home/user/Downloads"
-                  className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-                <button
-                  type="button"
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:text-gray-100"
-                  title="Folder picker not available in browser"
-                >
-                  📁
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {downloadState && (
-            <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-              <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-                <div
-                  className="h-full bg-brand transition-all duration-300"
-                  style={{ width: `${downloadState.progress}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-700 dark:text-gray-200">
-                {downloadState.status} ({downloadState.progress}%)
-                {downloadState.message ? ` — ${downloadState.message}` : ""}
-                {downloadState.current_title
-                  ? ` — ${downloadState.current_title}`
-                  : ""}
-              </p>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2">
-            {downloadState?.status === "running" ||
-            downloadState?.status === "queued" ? (
-              <button
-                onClick={cancelDownload}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-            ) : null}
-            <button
-              onClick={startDownload}
-              className="rounded-xl bg-brand px-6 py-2 text-white font-semibold hover:opacity-90 transition dark:bg-brandDark"
-            >
-              DOWNLOAD SELECTED VIDEOS ▶
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400">
-            {error}
-          </p>
         )}
         {transcriptError && (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
             {transcriptError}
           </p>
         )}

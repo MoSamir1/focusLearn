@@ -8,12 +8,47 @@
 
 body {
   margin: 0;
-  font-family: Inter, Cairo, sans-serif;
+  font-family: Cairo, Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-button,
-input,
-textarea,
-select {
+button, input, textarea, select {
   font: inherit;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #6366F1;
+  border-radius: 99px;
+  opacity: 0.5;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #818CF8;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Remove outline on mouse, keep for keyboard */
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Custom focus ring */
+*:focus-visible {
+  outline: 2px solid #6366F1;
+  outline-offset: 2px;
+  border-radius: 4px;
 }

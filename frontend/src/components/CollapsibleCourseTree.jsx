@@ -213,19 +213,19 @@ export default function CollapsibleCourseTree({
   const courseExpanded = expandedCourses.has(course.id);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="rounded-xl border border-gray-100 bg-gray-50/50 dark:border-white/5 dark:bg-white/3 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 border-b border-gray-100 dark:border-white/5">
         <button
           onClick={toggleCourseExpanded}
-          className="text-sm rounded-md border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-100"
+          className="text-sm rounded-lg border border-gray-200 px-2 py-1 text-gray-600 dark:border-white/10 dark:text-gray-300 hover:border-brand/50 transition"
         >
-          {courseExpanded ? "▼" : "◀"}
+          {courseExpanded ? "▼" : "▶"}
         </button>
-        <label className="flex items-center gap-2 flex-1">
+        <label className="flex items-center gap-2 flex-1 cursor-pointer">
           {enableHierarchySelection ? (
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
+              className="h-4 w-4 rounded border-gray-300 accent-brand"
               checked={
                 allVideoIds.length > 0 &&
                 allVideoIds.every((id) => selectedVideos.has(id))
@@ -233,21 +233,21 @@ export default function CollapsibleCourseTree({
               onChange={toggleCourseCheckbox}
             />
           ) : null}
-          <span className="font-semibold text-gray-900 dark:text-gray-100">
+          <span className="text-sm font-bold text-gray-900 dark:text-white">
             📚 {detail.title}
           </span>
         </label>
         <button
           onClick={selectAllCourse}
-          className="text-xs rounded-md border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-100"
+          className="text-xs rounded-lg border border-gray-200 px-2 py-1 text-gray-600 dark:border-white/10 dark:text-gray-300"
         >
-          ✓ Select All
+          تحديد الكل
         </button>
         <button
           onClick={clearCourse}
-          className="text-xs rounded-md border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-100"
+          className="text-xs rounded-lg border border-gray-200 px-2 py-1 text-gray-500 dark:border-white/10 dark:text-gray-400"
         >
-          Clear
+          إلغاء
         </button>
         {showDeleteButtons ? (
           <button
@@ -257,9 +257,9 @@ export default function CollapsibleCourseTree({
                 title: detail.title,
               })
             }
-            className="text-xs rounded-md bg-red-100 px-2 py-1 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+            className="text-xs rounded-lg bg-red-100 px-2 py-1 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
           >
-            🗑 Delete Course
+            🗑 حذف
           </button>
         ) : null}
       </div>
@@ -272,7 +272,7 @@ export default function CollapsibleCourseTree({
             : "max-h-0 overflow-hidden opacity-0",
         )}
       >
-        <div className="mt-3 space-y-3">
+        <div className="px-3 py-2">
           {detail.chapters.map((ch) => {
             const chExpanded = expandedChapters.has(ch.id);
             const chapterIds = ch.videos.map((v) => v.id);
@@ -282,51 +282,53 @@ export default function CollapsibleCourseTree({
             return (
               <div
                 key={ch.id}
-                className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
+                className="rounded-xl border border-gray-100 bg-white dark:border-white/5 dark:bg-[#0B0F1A] overflow-hidden"
               >
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-gray-50/80 dark:bg-white/5">
                   <button
                     onClick={() => toggleChapterExpanded(ch.id)}
-                    className="text-xs rounded-md border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-100"
+                    className="text-xs rounded-lg border border-gray-200 px-2 py-1 text-gray-500 dark:border-white/10 dark:text-gray-400"
                   >
-                    {chExpanded ? "▼" : "◀"}
+                    {chExpanded ? "▼" : "▶"}
                   </button>
-                  <label className="flex items-center gap-2 flex-1">
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
                     {enableHierarchySelection ? (
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
+                        className="h-4 w-4 rounded border-gray-300 accent-brand"
                         checked={chapterAllSelected}
                         onChange={() => toggleChapterSelection(ch)}
                       />
                     ) : null}
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
                       📁 {ch.title}
                     </span>
                   </label>
                   <button
                     onClick={() => toggleChapterSelection(ch)}
-                    className="text-[11px] rounded-md border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-100"
+                    className="text-[11px] rounded-lg border border-gray-200 px-2 py-1 text-gray-500 dark:border-white/10 dark:text-gray-400"
                   >
-                    {chapterAllSelected ? "Unselect All" : "✓ Select All"}
+                    {chapterAllSelected ? "إلغاء" : "تحديد الكل"}
                   </button>
-                  <button
-                    onClick={() =>
-                      requestDelete({
-                        type: "chapter",
-                        id: ch.id,
-                        title: ch.title,
-                      })
-                    }
-                    className="text-[11px] rounded-md bg-red-100 px-2 py-1 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
-                  >
-                    🗑 Delete Chapter
-                  </button>
+                  {showDeleteButtons && (
+                    <button
+                      onClick={() =>
+                        requestDelete({
+                          type: "chapter",
+                          id: ch.id,
+                          title: ch.title,
+                        })
+                      }
+                      className="text-[11px] rounded-lg bg-red-100 px-2 py-1 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </div>
 
                 <div
                   className={classNames(
-                    "ml-4 mt-2 space-y-2 transition-all duration-200",
+                    "transition-all duration-200",
                     chExpanded
                       ? "max-h-[1200px] opacity-100"
                       : "max-h-0 overflow-hidden opacity-0",
@@ -338,16 +340,16 @@ export default function CollapsibleCourseTree({
                     return (
                       <div
                         key={v.id}
-                        className="group flex flex-wrap items-center gap-2 rounded-md px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        className="group flex flex-wrap items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-white/5 border-b border-gray-50 dark:border-white/5 last:border-0"
                       >
-                        <span className="text-sm">🎬</span>
-                        <span className="flex-1 text-xs text-gray-900 dark:text-gray-100">
+                        <span className="text-xs text-gray-400">🎬</span>
+                        <span className="flex-1 text-xs text-gray-800 dark:text-gray-200 leading-relaxed">
                           {v.title}
                         </span>
                         {showStatus ? <StatusIcon status={status} /> : null}
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
+                          className="h-4 w-4 rounded border-gray-300 accent-brand"
                           checked={selected}
                           onChange={() => toggleVideo(v.id)}
                         />
@@ -355,7 +357,7 @@ export default function CollapsibleCourseTree({
                           <button
                             onClick={() => fetchTranscript(v)}
                             disabled={status === "loading"}
-                            className="text-[11px] rounded-md bg-brand px-2 py-1 text-white disabled:opacity-50 dark:bg-brandDark"
+                            className="text-[11px] rounded-lg bg-brand px-2.5 py-1 text-white disabled:opacity-50 dark:bg-brandDark"
                             title="جلب النص"
                           >
                             {status === "loading" ? "..." : "جلب النص"}
@@ -367,19 +369,16 @@ export default function CollapsibleCourseTree({
                               navigator.clipboard.writeText(v.transcript || "")
                             }
                             disabled={!v.transcript}
-                            className="text-[11px] rounded-md border border-gray-200 px-2 py-1 text-gray-800 disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
-                            title={
-                              v.transcript ? "Copy transcript" : "لا يوجد نص"
-                            }
+                            className="text-[11px] rounded-lg border border-gray-200 px-2 py-1 text-gray-600 disabled:opacity-40 dark:border-white/10 dark:text-gray-300"
                           >
-                            📋 Copy
+                            📋 نسخ
                           </button>
                         ) : null}
                         {showExports ? (
                           <>
                             <a
                               href={api.exportVideo(v.id, "pdf")}
-                              className="text-[11px] rounded-md bg-red-100 px-2 py-1 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                              className="text-[11px] rounded-lg bg-red-100 px-2 py-1 text-red-600 dark:bg-red-900/30 dark:text-red-400"
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -387,7 +386,7 @@ export default function CollapsibleCourseTree({
                             </a>
                             <a
                               href={api.exportVideo(v.id, "md")}
-                              className="text-[11px] rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                              className="text-[11px] rounded-lg bg-gray-100 px-2 py-1 text-gray-600 dark:bg-white/10 dark:text-gray-300"
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -404,7 +403,7 @@ export default function CollapsibleCourseTree({
                                 title: v.title,
                               })
                             }
-                            className="opacity-0 text-[11px] rounded-md bg-red-100 px-2 py-1 text-red-600 transition group-hover:opacity-100 dark:bg-red-900/30 dark:text-red-400"
+                            className="opacity-0 text-[11px] rounded-lg bg-red-100 px-2 py-1 text-red-600 transition group-hover:opacity-100 dark:bg-red-900/30 dark:text-red-400"
                             title="حذف الفيديو"
                           >
                             🗑
